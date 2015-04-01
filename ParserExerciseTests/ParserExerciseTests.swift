@@ -66,7 +66,7 @@ public func unexpectedCharParser<A>(c : Character) -> Parser<A> {
 
 // Return a parser that always succeeds with the given value and consumes no input
 public func valueParser<A>(a : A) -> Parser<A> {
-    return TODO()
+    return Parser({ i in succeed(i, a)})
 }
 
 class ValueParserExamples : XCTestCase {
@@ -78,7 +78,7 @@ class ValueParserExamples : XCTestCase {
 
 // Return a parser that always fails with ParseError.failed.
 public func failed<A>() -> Parser<A> {
-    return TODO()
+    return Parser({_ in failParse()})
 }
 
 class FailedParserExamples : XCTestCase {
@@ -93,7 +93,7 @@ class FailedParserExamples : XCTestCase {
 // String manipulation examples: 
 //      http://sketchytech.blogspot.com.au/2014/08/swift-pure-swift-method-for-returning.html
 public func character() -> Parser<Character> {
-    return TODO()
+    return Parser({i in first(i).map({succeed(dropFirst(i), $0)}) ?? failWithUnexpectedEof()})
 }
 
 class CharacterParserExamples : XCTestCase {
@@ -111,7 +111,14 @@ extension Parser {
     // Return a parser that maps any succeeding result with the given function.
     // Hint: will require the construction of a `Parser<B>` and pattern matching on the result of `self.parse`.
     public func map<B>(f : A -> B) -> Parser<B> {
-        return TODO()
+        return Parser<B>(
+            { i in
+                let parsed = self.parse(i)
+                switch parsed {
+                case .ErrorResult(let e) : return failWithParseError(e)
+                case .Result(let i, let a) : return succeed(i, f(a.value))
+                }
+            })
     }
 }
 
@@ -140,7 +147,14 @@ extension Parser {
     //   * if this parser fails with an error the returned parser fails with that error.
     //
     public func flatMap<B>(f : A -> Parser<B>) -> Parser<B> {
-        return TODO()
+        return Parser<B>(
+            { i in
+            let parsed = self.parse(i)
+            switch parsed{
+            case .ErrorResult(let e) : return failWithParseError(e)
+            case .Result(let rest, let a) : return f(a.value).parse(rest)
+            }
+        })
     }
 }
 
@@ -177,7 +191,7 @@ public class FlatMapParserExamples : XCTestCase {
 //
 // Hint: Use Parser.flatMap
 public func >>><A,B>(first : Parser<A>, second : Parser<B>) -> Parser<B> {
-    return TODO()
+    return first.flatMap({_ in second})
 }
 
 public class SkipParserExamples : XCTestCase {
@@ -197,7 +211,11 @@ public class SkipParserExamples : XCTestCase {
 //
 //   * If the first parser fails, try the second parser.
 public func |||<A>(first: Parser<A>, second:Parser<A>) -> Parser<A> {
-    return TODO()
+    return Parser({
+        i in
+        let firstParse = first.parse(i)
+        return !firstParse.isError() ? first.parse(i) : second.parse(i)
+    })
 }
 
 public class OrParserExamples : XCTestCase {
@@ -222,7 +240,7 @@ public class OrParserExamples : XCTestCase {
 // Hint: - Use valueParser, |||, and atLeast1 parser (defined below).
 //       - list and atLeast1 are mutually recursive calls!
 public func list<A>(p : Parser<A>) -> Parser<[A]> {
-    return TODO()
+    return atLeast1(p) ||| valueParser([])
 }
 // Return a parser that produces at least one value from the given parser then
 // continues producing a list of values from the given parser (to ultimately produce a non-empty list).
@@ -231,7 +249,7 @@ public func list<A>(p : Parser<A>) -> Parser<[A]> {
 // Hint: - Use flatMap, valueParser, and list (defined above)
 //       - list and atLeast1 are mutually recursive calls!
 public func atLeast1<A>(p : Parser<A>) -> Parser<[A]> {
-    return TODO()
+    return p.flatMap({first in return list(p).map({rest in return [first] + rest})})
 }
 
 // list and atLeast1 should both be completed before these examples should pass
@@ -261,7 +279,7 @@ class ListParserExamples : XCTestCase {
 //
 // Hint: The flatMap, valueParser, unexpectedCharParser and character functions will be helpful here.
 public func satisfy(p : Character -> Bool) -> Parser<Character> {
-    return TODO()
+    return character().flatMap({c in return p(c) ? valueParser(c) : unexpectedCharParser(c)})
 }
 class SatisfyParserExamples : XCTestCase {
     func testParseUpper() {
@@ -281,7 +299,7 @@ class SatisfyParserExamples : XCTestCase {
 //
 // Hint: Use the satisfy function.
 public func charIs(c : Character) -> Parser<Character> {
-    return TODO()
+    return satisfy({char in c == char})
 }
 
 class CharIsParserExamples : XCTestCase {
@@ -303,7 +321,7 @@ class CharIsParserExamples : XCTestCase {
 // Hint: - Use the satisfy and isDigit functions.
 //       - This returns a Parser<Character>, not a Parser<Int>
 public func digit() -> Parser<Character> {
-    return TODO()
+    return satisfy(isDigit)
 }
 
 class DigitParserExamples : XCTestCase {
@@ -324,7 +342,7 @@ class DigitParserExamples : XCTestCase {
 //
 // Hint: Use atLeast1, digit, map, and parseIntOr0
 public func natural() -> Parser<Int> {
-    return TODO()
+    return atLeast1(digit()).map(parseIntOr0)
 }
 
 class NaturalParserExamples : XCTestCase {
@@ -353,7 +371,7 @@ class NaturalParserExamples : XCTestCase {
 //
 // Hint: Use the satisfy and isSpace functions.
 public func space() -> Parser<Character> {
-    return TODO()
+    return satisfy(isSpace)
 }
 
 class SpaceParserExamples : XCTestCase {
@@ -379,7 +397,7 @@ class SpaceParserExamples : XCTestCase {
 //
 // Hint: Use the atLeast1, space, map, and charsToString functions.
 public func spaces() -> Parser<String> {
-    return TODO()
+    return atLeast1(space()).map(charsToString)
 }
 
 class SpacesParserExamples : XCTestCase {
@@ -406,7 +424,7 @@ class SpacesParserExamples : XCTestCase {
 //
 // Hint: Use the satisfy and isLowerCase functions
 public func lower() -> Parser<Character> {
-    return TODO()
+    return satisfy(isLowerCase)
 }
 
 // Return a parser that produces an upper-case character but fails if
@@ -416,7 +434,7 @@ public func lower() -> Parser<Character> {
 //
 // Hint: Use the satisfy and isUpperCase functions
 public func upper() -> Parser<Character> {
-    return TODO()
+    return satisfy(isUpperCase)
 }
 
 // Return a parser that produces an alpha character but fails if
@@ -426,7 +444,7 @@ public func upper() -> Parser<Character> {
 //
 // Hint: Use the satisfy and isAlpha functions
 public func alpha() -> Parser<Character> {
-    return TODO()
+    return satisfy(isAlpha)
 }
 
 class LowerUpperAlphaExamples : XCTestCase {
@@ -455,7 +473,9 @@ class LowerUpperAlphaExamples : XCTestCase {
 // Hint: - Use flatMap, valueParser and Array.reduceRight.
 //       - There is a `cons : (A, [A]) -> [A]` helper function if that helps.
 public func sequenceParser<A>(pp : [Parser<A>]) -> Parser<[A]> {
-    return TODO()
+    let defaultVal = valueParser([A]())
+    return pp.reduceRight(defaultVal, combine: {(p, acc) in return p.flatMap({val in return acc.map({accVal in return cons(val,accVal)})})})
+    //return pp[0].flatMap({first in return pp1].flatMap({second in return pp[2].flatMap({third in valueParser(cons(first,cons(second,[third])))})})})
 }
 
 class SequenceParserExamples : XCTestCase {
@@ -475,7 +495,7 @@ class SequenceParserExamples : XCTestCase {
 //
 // Hint: Use sequenceParser and replicate (replicate : (Integer, A) -> [A])
 public func thisMany<A>(n : Int, p : Parser<A>) -> Parser<[A]> {
-    return TODO()
+    return sequenceParser(replicate(n, p))
 }
 
 class ThisManyExamples : XCTestCase {
@@ -509,7 +529,7 @@ public struct Person : Printable, Equatable {
 
 // Return a parser for age. Age must be a positive integer.
 public func ageParser() -> Parser<Int> {
-    return TODO()
+    return natural()
 }
 
 // Return a parser for first name.
@@ -517,20 +537,23 @@ public func ageParser() -> Parser<Int> {
 //
 // Hint: use parser.map(charsToString) to convert a parser of [Character] to a parser of String.
 public func firstNameParser() -> Parser<String> {
-    return TODO()
+    return sequenceParser([thisMany(1,upper()),list(alpha())]).map({$0.reduce("", {$0+charsToString($1)})})
+    //return sequenceParser([thisMany(1,upper()).map(charsToString),list(alpha()).map(charsToString)]).map({$0.reduce("", +)})
 }
 
 // Return a parser for surname.
 // Surname starts with a capital letter and is followed by 5 or more lower-case letters
 public func surnameParser() -> Parser<String> {
-    return TODO()
+    return sequenceParser([thisMany(1, upper()),thisMany(5, lower()), list(lower())]).map({$0.reduce("", {$0+charsToString($1)})})
+    //return TODO()//sequenceParser([thisMany(1,upper()).map(charsToString),thisMany(5, lower()), list(lower()]).map({$0.reduce("", +)})
+    //sequenceParser([thisMany(1, upper()),thisMany(5, lower()), list(lower()])
 }
 // Return a bool indicating whether a person is a smoker.
 // Smoker field is true if "y", or non-smoker if "n"
 //
 // Hint: use charIs, ||| and valueParser
 public func smokerParser() -> Parser<Bool> {
-    return TODO()
+    return (charIs("y") ||| charIs("n")).map({$0 == "y"})
 }
 
 class SmokerParserExamples : XCTestCase {
@@ -560,7 +583,7 @@ class SmokerParserExamples : XCTestCase {
 //
 // Hint: Use list, digit, ||| and charIs.
 public func phoneBodyParser() -> Parser<String> {
-    return TODO()
+    return list(digit() ||| charIs(".") ||| charIs("-")).map(charsToString)
 }
 
 class PhoneBodyExamples : XCTestCase {
@@ -585,7 +608,7 @@ class PhoneBodyExamples : XCTestCase {
 // Hint: - Use flatMap, valueParser, digit, phoneBodyParser and charIs.
 //       - Use String(c) to convert a Character c to a String.
 public func phoneParser() -> Parser<String> {
-    return TODO()
+    return digit().flatMap({first in phoneBodyParser().flatMap({phoneNumber in charIs("#").flatMap({_ in return valueParser(String(first) + phoneNumber)})})})
 }
 
 class PhoneParserExamples : XCTestCase {
@@ -605,6 +628,10 @@ class PhoneParserExamples : XCTestCase {
         let result = phoneParser().parse("a123-456")
         assertEqual(result, failWithUnexpectedChar("a"))
     }
+    func testPhoneNumberWithInvalidCharDash() {
+        let result = phoneParser().parse("-123-456")
+        assertEqual(result, failWithUnexpectedChar("-"))
+    }
 }
 
 // Write a parser for Person with age, firstname, surname, smoker, phone fields separated by one
@@ -620,7 +647,17 @@ class PhoneParserExamples : XCTestCase {
 //          smokerParser,
 //          phoneParser.
 public func personParser() -> Parser<Person> {
-    return TODO()
+    return ageParser().flatMap({
+        age in (spaces() >>> firstNameParser()).flatMap({
+            firstName in (spaces() >>> surnameParser()).flatMap({
+                surname in (spaces() >>> smokerParser()).flatMap({
+                    smoker in (spaces() >>> phoneParser()).flatMap({
+                        phone in valueParser(Person(age:age, firstName:firstName, surname:surname, smoker:smoker, phone:phone))
+                    })
+                })
+            })
+        })
+    })
 }
 
 class PersonParserExamples : XCTestCase {
